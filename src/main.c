@@ -6,16 +6,13 @@
 #include <pthread.h>
 
 
-pthread_mutex_t cafe[4];
 pthread_mutex_t trava;
-pthread_mutex_t livre[4];
 
-pthread_cond_t espera[4];
 
 //variaveis globais
 int contador=0;
 
-int num_threads=0,  recebe=0, end=0, ocupada[4]={0, 0, 0, 0};
+int num_threads=0,cafe[4],  recebe=0, end=0, ocupada[4]={0, 0, 0, 0};
 unsigned int numero;
 
 
@@ -38,31 +35,30 @@ void *worker(void *arg) {
 
 	free(id);
 
-	printf("Sucesso gerando thread %d\n", threadid);
+	//printf("W %d Sucesso gerando thread \n", threadid);
 
 	while(!end){
-		printf("Esperando trampo! id=%d\n", threadid);
+		//printf("W %d Esperando trampo! \n", threadid);
 
-		ocupada[threadid]=0;
-		//a thread chega aqui sem a lock cafe mas a do recebe esta livre
-		pthread_mutex_lock(&cafe[threadid]);	//fica esperando a principal cortar o cafezinho(soltar a lock cafe)
-		pthread_mutex_unlock(&cafe[threadid]);	
-		ocupada[threadid]=1;
+		cafe[threadid]=1;
+
+		while(cafe[threadid]);	//espera acabar o cafe e receber trabalho
+
 		num=numero;				//le o numero
 		pthread_mutex_lock(&trava);
 		recebe=1;
 		pthread_mutex_unlock(&trava);
 
-		printf("Comecei a labuta num=%u contador=%d id=%d\n", num, contador, threadid);
+		//printf("W %d Comecei a labuta num=%u contador=%d \n", threadid, num, contador);
 		//sleep(2);
 		if(isprimo(num)){		//se primo incrementa o contador
 			pthread_mutex_lock(&trava); 
 			contador++;		
 			pthread_mutex_unlock(&trava); 
 		}
-		printf("terminei! num=%u contador=%d id=%d\n", num, contador, threadid);
+		//printf("W %d terminei! num=%u contador=%d \n", threadid, num, contador );
 	}
-	printf("thread %d acabou\n", threadid);
+	//printf("W %d thread acabou\n", threadid);
 	return NULL;
 }
 
@@ -77,7 +73,6 @@ int main(int argc, char **argv) {
 
 	//faz novas threads
 	for(j=0; j<4; j++){
-		pthread_mutex_lock(&cafe[j]);	//deixa a maquina de cafe j ligada(ie pega trava cafe j)
 		tid=malloc(sizeof(int));
 		(*tid)=j;
 		pthread_create(&thread[j], NULL, worker, tid);
@@ -99,43 +94,48 @@ int main(int argc, char **argv) {
 		s[i]='\0';
 		numero=atoi(s);
 
-		while(ocupada[j]){ 	//espera abrir uma thread	
+		while(!cafe[j]){ 	//espera abrir uma thread	
 			j++;	//numero da thread que esta sendo utilizada nesse loop
 			j%=4;
 		}
 
-		//o programa chega aqui com a thread j travada em cafe[j].
-		pthread_mutex_unlock(&cafe[j]);		//libera a thread j
+		cafe[j]=0;			//tira o cafe do trabalhador fazendo com que trabalhe
 
+		
 		while(!recebe);			//espera a thread receber o numero
 
 		pthread_mutex_lock(&trava);	//pega a lock do recebe
 		recebe=0;
 		pthread_mutex_unlock(&trava);//destrava a thread main com o numero ja lido 
 
-		pthread_mutex_lock(&cafe[j]);		//liga a maquina de(pega a trava) cafe para onde o trabalhador volta(para) apos terminar a tarefa
 
 
-		printf("thread recebeu tarefa: num=%u,  i=%d\n",numero, j);
-		//printf("gerei thread: num=%u, threads=%d i=%d\n",numero, num_threads, j);
+		//printf("thread recebeu tarefa: num=%u,  i=%d\n",numero, j);
+		////printf("gerei thread: num=%u, threads=%d i=%d\n",numero, num_threads, j);
 
 
 
 
 	}
-	numero=1;	//encerra as threads com um numero que nao adiciona ao contador
-	for(i=0; i<4; i++)
-		pthread_mutex_unlock(&cafe[i]);		//libera a thread j
+	while(!cafe[0] ||!cafe[1] ||!cafe[2] ||!cafe[3] ); //espera todo mundo na sala de cafe
+
+	pthread_mutex_lock(&trava); 
+	resultado=contador;		
+	pthread_mutex_unlock(&trava); 
+
+	numero=1;
 
 	end=1;	//da o sinal para as threads de que o expediente terminou nessa execucao
-	printf("Encerrado\n");
+
+	//printf("Encerrado\n");
 	
 
 	for(i=0; i<4; i++){
+		cafe[i]=0;
 		pthread_join(thread[i], NULL);
 	}
 
-	printf("%d\n", contador);
+	printf("%d\n", resultado);
 
 
 	return 0;
