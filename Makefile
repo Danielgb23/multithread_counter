@@ -1,6 +1,6 @@
 # Macros para compilacao
 CC = gcc
-CFLAGS = -Wextra -lpthread
+CFLAGS = -Wextra -lpthread -g
 DIR = src
 FILENAME = $(DIR)/main.c
 TARGET = ./main
